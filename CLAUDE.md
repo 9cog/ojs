@@ -155,6 +155,109 @@ Plugin types in `plugins/`:
 - `reports/` - Analytics reports
 - `paymethod/` - Payment integrations
 
+## AI Agent System (7-Node Blueprint)
+
+OJS includes an autonomous AI agent system based on the 7-Node Agent Blueprint architecture.
+
+### Architecture Overview
+
+```
+classes/agents/
+├── AgentOrchestrator.php    # Coordinates all nodes
+├── contracts/               # Interfaces
+│   ├── AgentNodeInterface.php
+│   └── AgentContextInterface.php
+├── nodes/                   # The 7 agent nodes
+│   ├── LLMNode.php          # AI reasoning (OpenAI, Anthropic, Ollama)
+│   ├── ToolNode.php         # OJS integrations (submissions, users, etc.)
+│   ├── ControlNode.php      # Logic routing and branching
+│   ├── MemoryNode.php       # Context persistence and RAG
+│   ├── GuardrailNode.php    # Validation and safety checks
+│   ├── FallbackNode.php     # Error handling with circuit breaker
+│   └── UserInputNode.php    # Human-in-the-loop approvals
+└── config/
+    └── agents.php           # Default configuration
+```
+
+### The 7 Nodes
+
+| Node | Purpose | Key Features |
+|------|---------|--------------|
+| **LLM** | AI reasoning | Multi-provider (OpenAI, Anthropic, Ollama), conversation history |
+| **Tool** | External integrations | OJS APIs (submissions, users, reviews), extensible |
+| **Control** | Workflow routing | Switch/case logic, state machines, loops |
+| **Memory** | Context persistence | Short/long-term memory, semantic search (RAG) |
+| **Guardrail** | Validation | Schema validation, PII detection, toxicity checks |
+| **Fallback** | Error handling | Exponential backoff, circuit breaker pattern |
+| **User Input** | Human-in-the-loop | Approvals, clarifications, feedback collection |
+
+### Usage Example
+
+```php
+use APP\agents\AgentOrchestrator;
+
+// Initialize orchestrator (creates all 7 nodes)
+$orchestrator = new AgentOrchestrator([
+    'llm' => ['provider' => 'openai', 'model' => 'gpt-4o-mini'],
+]);
+
+// Simple chat interface
+$result = $orchestrator->chat('What submissions need review?', $userId);
+
+// Full execution with context
+$result = $orchestrator->execute([
+    'prompt' => 'Help me find reviewers for submission 123',
+], [
+    'user_id' => $userId,
+    'context_id' => $journalId,
+]);
+```
+
+### Configuration
+
+Add to `config.inc.php`:
+
+```ini
+[agents]
+enabled = true
+llm_provider = openai
+llm_model = gpt-4o-mini
+openai_api_key = sk-...
+; Or use environment variables: OPENAI_API_KEY, ANTHROPIC_API_KEY
+```
+
+### Available Tools
+
+The Tool Node provides these OJS integrations:
+- `get_submission` - Get submission details
+- `search_submissions` - Search submissions by criteria
+- `get_submission_files` - Get files for a submission
+- `get_user` / `search_users` - User operations
+- `get_journal` - Journal details
+- `get_review_assignments` - Review information
+- `get_current_issue` - Current issue details
+- `get_submission_stats` - Usage statistics
+
+### Extending the System
+
+Register custom tools:
+```php
+$toolNode = $orchestrator->getNode('tool');
+$toolNode->registerTool('my_custom_tool', [
+    'description' => 'Does something custom',
+    'parameters' => ['param1' => 'string'],
+    'handler' => fn($params) => myCustomHandler($params),
+]);
+```
+
+Add guardrail validators:
+```php
+$guardrailNode = $orchestrator->getNode('guardrail');
+$guardrailNode->registerValidator('my_check', function($data, $params) {
+    return ['passed' => true, 'message' => null];
+});
+```
+
 ## File Issues
 
 Report bugs at: https://github.com/pkp/pkp-lib/issues/
